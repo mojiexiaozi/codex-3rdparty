@@ -9,10 +9,13 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout main repository
         uses: actions/checkout@v4
       - name: Create release
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -21,8 +24,6 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
-      - name: Set release URL output
-        run: echo "RELEASE_UPLOAD_URL=${{ steps.create_release.outputs.upload_url }}" >> $GITHUB_ENV
   build:
     runs-on: ${{matrix.os}}
     needs: release
@@ -124,7 +125,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ env.RELEASE_UPLOAD_URL }}
+          upload_url: ${{needs.release.outputs.upload_url}}
           asset_path: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
           asset_name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
           asset_content_type: application/zip
