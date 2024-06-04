@@ -7,12 +7,13 @@ on:
     workflow_dispatch: # 手动触发
 
 jobs:
-  create-release:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main repository
         uses: actions/checkout@v4
       - name: Create release
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -23,7 +24,7 @@ jobs:
           prerelease: false
   build:
     runs-on: ${{matrix.os}}
-    needs: create-release
+    needs: release
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -66,12 +67,7 @@ jobs:
         with:
           name: opencv-include
           path: opencv/install/include/opencv4
-      - name: download opencv include
-        if: runner.os == 'Windows' || matrix.build_type != 'Debug'
-        uses: actions/download-artifact@v4
-        with:
-          name: opencv-include
-          path: 3rdparty/include
+
       - name: build googletest
         run: |
           cd googletest
@@ -89,22 +85,44 @@ jobs:
           Copy-Item -Path opencv\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\lib\\${{ matrix.build_type }} -Recurse
           Copy-Item -Path googletest\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\lib\\${{ matrix.build_type }} -Recurse
 
-      - name: Archive the build (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: upload 3rdparty
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
+          path: 3rdparty/
+
+  upload:
+    runs-on: ubuntu-latest
+    needs: [build, release]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        build_type: [Debug, Release]
+
+    steps:
+      - name: download 3rdparty
+        if: matrix.os == 'Windows' || matrix.build_type != 'Debug'
+        uses: actions/download-artifact@v4
+        with:
+          name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
+          path: 3rdparty/
+      - name: download opencv include
+        if: matrix.os == 'Windows' || matrix.build_type != 'Debug'
+        uses: actions/download-artifact@v4
+        with:
+          name: opencv-include
+          path: 3rdparty/include
+
+      - name: Archive the build
         run: |
           zip -r 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip 3rdparty/
-
-      - name: Archive the build (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          Compress-Archive -Path 3rdparty\* -DestinationPath 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.release.outputs.upload_url }}
           asset_path: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
           asset_name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
           asset_content_type: application/zip
