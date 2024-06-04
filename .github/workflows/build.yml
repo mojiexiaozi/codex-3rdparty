@@ -102,13 +102,12 @@ jobs:
       - name: Checkout main repository
         uses: actions/checkout@v4
       - name: download 3rdparty
-        if: matrix.os == 'Windows' || matrix.build_type != 'Debug'
         uses: actions/download-artifact@v4
         with:
           name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
           path: 3rdparty/
       - name: download opencv include
-        if: matrix.os == 'Windows' || matrix.build_type != 'Debug'
+        if: !(matrix.os != 'Windows' && matrix.build_type == 'Debug')
         uses: actions/download-artifact@v4
         with:
           name: opencv-include
