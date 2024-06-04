@@ -49,6 +49,9 @@ jobs:
           cp -r json/single_include/nlohmann 3rdparty/include
           cp -r googletest/googletest/include/gtest 3rdparty/include
           cp -r spdlog/include/spdlog 3rdparty/include
+      - name: mkdir
+        if: runner.os != 'Windows'
+        run: |
           mkdir -p 3rdparty/opencv/lib/${{matrix.build_type}}
           mkdir -p 3rdparty/opencv/bin/${{matrix.build_type}}
           mkdir -p 3rdparty/googletest/lib/${{matrix.build_type}}
@@ -83,9 +86,9 @@ jobs:
       - name: copy build on win
         if: runner.os == 'Windows'
         run: |
-          Copy-Item -Path opencv\\build\\bin\\${{ matrix.build_type }} -Destination 3rdparty\\opencv\\bin\\${{ matrix.build_type }} -Recurse
-          Copy-Item -Path opencv\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\opencv\\lib\\${{ matrix.build_type }} -Recurse
-          Copy-Item -Path googletest\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\googletest\\lib\\${{ matrix.build_type }} -Recurse
+          Copy-Item -Path opencv\\build\\bin\\${{ matrix.build_type }} -Destination 3rdparty\\opencv\\bin -Recurse
+          Copy-Item -Path opencv\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\opencv\\lib -Recurse
+          Copy-Item -Path googletest\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\googletest\\lib -Recurse
 
       - name: upload 3rdparty
         uses: actions/upload-artifact@v4
