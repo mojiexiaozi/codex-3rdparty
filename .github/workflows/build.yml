@@ -1,0 +1,106 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+    workflow_dispatch: # 手动触发
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+  build:
+    runs-on: ${{matrix.os}}
+    needs: create-release
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        build_type: [Debug, Release]
+    steps:
+      - name: setup cmake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: clone repository
+        run: |
+          git clone --branch 4.10.0 https://github.com/opencv/opencv.git
+          git clone --branch v1.14.0 https://github.com/google/googletest.git
+          git clone --branch v3.11.3 https://github.com/nlohmann/json.git
+          git clone --branch v1.14.1 https://github.com/gabime/spdlog.git
+      - name: mkdir & copy
+        run: |
+          mkdir -p 3rdparty/include
+          cp -r spdlog/include/spdlog 3rdparty/include
+          cp -r googletest/googletest/include/gtest 3rdparty/include
+          cp -r spdlog/include/spdlog 3rdparty/include
+          mkdir -p 3rdparty/opencv/lib/${{matrix.build_type}}
+          mkdir -p 3rdparty/opencv/bin/${{matrix.build_type}}
+          mkdir -p 3rdparty/googletest/lib/${{matrix.build_type}}
+      - name: build opencv
+        run: |
+          cd opencv
+          cmake -S . -B build -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF -DBUILD_opencv_world=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPROJECT_VERSION=${{ github.ref_name }
+          cmake --build build --config ${{ matrix.build_type }}
+      - name: install opencv
+        if: runner.os != 'Windows' && matrix.build_type == 'Debug'
+        run: |
+          cd opencv
+          cmake --install build --prefix install
+          cp -r install/include/opencv4/opencv2 ../3rdparty/include
+      - name: upload opencv include
+        if: runner.os != 'Windows' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencv-include
+          path: opencv/install/include/opencv4
+      - name: download opencv include
+        if: runner.os == 'Windows' || matrix.build_type != 'Debug'
+        uses: actions/download-artifact@v4
+        with:
+          name: opencv-include
+          path: 3rdparty/include
+      - name: build googletest
+        run: |
+          cd googletest
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPROJECT_VERSION=${{ github.ref_name }}
+          cmake --build build --config ${{ matrix.build_type }}
+      - name: copy build on linux
+        if: runner.os != 'Windows'
+        run: |
+          cp opencv/build/lib/libopencv_world.so 3rdparty/opencv/lib/${{matrix.build_type}}/libopencv_world.so.410
+          cp googletest/build/lib/* 3rdparty/googletest/lib/${{matrix.build_type}}/
+      - name: copy build on win
+        if: runner.os == 'Windows'
+        run: |
+          Copy-Item -Path opencv\\build\\bin\\${{ matrix.build_type }} -Destination 3rdparty\\bin\\${{ matrix.build_type }} -Recurse
+          Copy-Item -Path opencv\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\lib\\${{ matrix.build_type }} -Recurse
+          Copy-Item -Path googletest\\build\\lib\\${{ matrix.build_type }} -Destination 3rdparty\\lib\\${{ matrix.build_type }} -Recurse
+
+      - name: Archive the build (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          zip -r 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip 3rdparty/
+
+      - name: Archive the build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path 3rdparty\* -DestinationPath 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
+          asset_name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}.zip
+          asset_content_type: application/zip
