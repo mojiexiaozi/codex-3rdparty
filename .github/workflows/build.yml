@@ -43,7 +43,7 @@ jobs:
       - name: mkdir & copy
         run: |
           mkdir -p 3rdparty/include
-          cp -r spdlog/include/spdlog 3rdparty/include
+          cp -r json/single_include/nlohmann 3rdparty/include
           cp -r googletest/googletest/include/gtest 3rdparty/include
           cp -r spdlog/include/spdlog 3rdparty/include
           mkdir -p 3rdparty/opencv/lib/${{matrix.build_type}}
