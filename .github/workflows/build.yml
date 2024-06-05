@@ -107,6 +107,7 @@ jobs:
         run: |
           git clone --branch v3.11.3 https://github.com/nlohmann/json.git
           git clone --branch v1.14.1 https://github.com/gabime/spdlog.git
+          git clone --branch v1.14.0 https://github.com/google/googletest.git
       - name: download opencv include
         uses: actions/download-artifact@v4
         with:
