@@ -7,7 +7,7 @@ on:
     workflow_dispatch: # 手动触发
 
 jobs:
-  release:
+  create-release:
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -24,7 +24,7 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
-  build:
+  build-opencv:
     runs-on: ${{matrix.os}}
     needs: release
     strategy:
@@ -36,25 +36,9 @@ jobs:
         uses: actions/checkout@v4
       - name: setup cmake
         uses: jwlawson/actions-setup-cmake@v2
-
       - name: clone repository
         run: |
           git clone --branch 4.10.0 https://github.com/opencv/opencv.git
-          git clone --branch v1.14.0 https://github.com/google/googletest.git
-          git clone --branch v3.11.3 https://github.com/nlohmann/json.git
-          git clone --branch v1.14.1 https://github.com/gabime/spdlog.git
-      - name: mkdir & copy
-        run: |
-          mkdir -p 3rdparty/include
-          cp -r json/single_include/nlohmann 3rdparty/include
-          cp -r googletest/googletest/include/gtest 3rdparty/include
-          cp -r spdlog/include/spdlog 3rdparty/include
-      - name: mkdir
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p 3rdparty/opencv/lib/${{matrix.build_type}}
-          mkdir -p 3rdparty/opencv/bin/${{matrix.build_type}}
-          mkdir -p 3rdparty/googletest/lib/${{matrix.build_type}}
       - name: build opencv
         run: |
           cd opencv
@@ -72,33 +56,40 @@ jobs:
         with:
           name: opencv-include
           path: opencv/install/include/opencv4
-
+      - name: upload opencv build
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencv-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
+          path: opencv/build
+  build-googletest:
+    runs-on: ${{matrix.os}}
+    needs: release
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2019]
+        build_type: [Debug, Release]
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+      - name: setup cmake
+        uses: jwlawson/actions-setup-cmake@v2
+      - name: clone repository
+        run: |
+          git clone --branch v1.14.0 https://github.com/google/googletest.git
       - name: build googletest
         run: |
           cd googletest
           cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPROJECT_VERSION=${{ github.ref_name }}
           cmake --build build --config ${{ matrix.build_type }}
-      - name: copy build on linux
-        if: runner.os != 'Windows'
-        run: |
-          cp opencv/build/lib/libopencv_world.so 3rdparty/opencv/lib/${{matrix.build_type}}/libopencv_world.so.410
-          cp googletest/build/lib/* 3rdparty/googletest/lib/${{matrix.build_type}}/
-      - name: copy build on win
-        if: runner.os == 'Windows'
-        run: |
-          Copy-Item -Path opencv\\build\\bin -Destination 3rdparty\\opencv\\bin -Recurse
-          Copy-Item -Path opencv\\build\\lib -Destination 3rdparty\\opencv\\lib -Recurse
-          Copy-Item -Path googletest\\build\\lib -Destination 3rdparty\\googletest\\lib -Recurse
-
-      - name: upload 3rdparty
+      - name: upload googletest build
         uses: actions/upload-artifact@v4
         with:
-          name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
-          path: 3rdparty/
+          name: googletest-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
+          path: googletest/build
 
-  upload:
+  release:
     runs-on: ubuntu-latest
-    needs: [build, release]
+    needs: [create-release, build-googletest, build-opencv]
     strategy:
       matrix:
         os: [ubuntu-20.04, windows-2019]
@@ -107,17 +98,47 @@ jobs:
     steps:
       - name: Checkout main repository
         uses: actions/checkout@v4
-      - name: download 3rdparty
-        uses: actions/download-artifact@v4
-        with:
-          name: 3rdparty-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
-          path: 3rdparty/
+      - name: mkdir
+        run: |
+          mkdir -p 3rdparty/include
+          mkdir -p 3rdparty/opencv/lib/${{matrix.build_type}}
+          mkdir -p 3rdparty/opencv/bin/${{matrix.build_type}}
+          mkdir -p 3rdparty/googletest/lib/${{matrix.build_type}}
+      - name: clone repository
+        run: |
+          git clone --branch v3.11.3 https://github.com/nlohmann/json.git
+          git clone --branch v1.14.1 https://github.com/gabime/spdlog.git
       - name: download opencv include
-        if: matrix.os == 'Windows' || matrix.build_type != 'Debug'
         uses: actions/download-artifact@v4
         with:
           name: opencv-include
           path: 3rdparty/include
+      - name: download opencv build
+        uses: actions/download-artifact@v4
+        with:
+          name: opencv-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
+          path: opencv/
+      - name: download googletest build
+        uses: actions/download-artifact@v4
+        with:
+          name: googletest-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
+          path: googletest/
+      
+      - name: copy include
+        run: |
+          cp -r json/single_include/nlohmann 3rdparty/include
+          cp -r googletest/googletest/include/gtest 3rdparty/include
+          cp -r spdlog/include/spdlog 3rdparty/include
+      - name: copy build linux
+        if: matrix.os != 'Windows'
+        run: |
+          cp opencv/build/lib/libopencv_world.so 3rdparty/opencv/lib/${{matrix.build_type}}/libopencv_world.so.410
+          cp googletest/build/lib/* 3rdparty/googletest/lib/${{matrix.build_type}}/
+      - name: copy build win
+        if: matrix.os == 'Windows'
+        run: |
+          cp opencv/build/lib/${{matrix.build_type}}/* 3rdparty/opencv/lib/${{matrix.build_type}}/
+          cp googletest/build/lib/${{matrix.build_type}}/* 3rdparty/googletest/lib/${{matrix.build_type}}/
 
       - name: Archive the build
         run: |
