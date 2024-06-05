@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Create release
         id: create_release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v1.14
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -117,12 +117,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: opencv-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
-          path: opencv/
+          path: opencv
       - name: download googletest build
         uses: actions/download-artifact@v4
         with:
           name: googletest-${{ matrix.os }}-${{ matrix.build_type }}-${{ github.ref_name }}
-          path: googletest/
+          path: googletest
       
       - name: copy include
         run: |
@@ -130,15 +130,16 @@ jobs:
           cp -r googletest/googletest/include/gtest 3rdparty/include
           cp -r spdlog/include/spdlog 3rdparty/include
       - name: copy build linux
-        if: matrix.os != 'Windows'
+        if: matrix.os != 'windows-2019'
         run: |
-          cp opencv/build/lib/libopencv_world.so 3rdparty/opencv/lib/${{matrix.build_type}}/libopencv_world.so.410
-          cp googletest/build/lib/* 3rdparty/googletest/lib/${{matrix.build_type}}/
+          cp opencv/lib/libopencv_world.so 3rdparty/opencv/lib/${{matrix.build_type}}/libopencv_world.so.410
+          cp googletest/lib/* 3rdparty/googletest/lib/${{matrix.build_type}}/
       - name: copy build win
-        if: matrix.os == 'Windows'
+        if: matrix.os == 'windows-2019'
         run: |
-          cp opencv/build/lib/${{matrix.build_type}}/* 3rdparty/opencv/lib/${{matrix.build_type}}/
-          cp googletest/build/lib/${{matrix.build_type}}/* 3rdparty/googletest/lib/${{matrix.build_type}}/
+          cp opencv/lib/${{matrix.build_type}}/* 3rdparty/opencv/lib/${{matrix.build_type}}/
+          cp opencv/bin/${{matrix.build_type}}/* 3rdparty/opencv/bin/${{matrix.build_type}}/
+          cp googletest/lib/${{matrix.build_type}}/* 3rdparty/googletest/lib/${{matrix.build_type}}/
 
       - name: Archive the build
         run: |
