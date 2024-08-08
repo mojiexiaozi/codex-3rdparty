@@ -50,7 +50,7 @@ jobs:
           cd opencv
           cmake --install build --prefix install
       - name: upload opencv include
-        if: runner.os == 'ubuntu-20.04' && matrix.build_type == 'Debug'
+        if: matrix.os == 'ubuntu-20.04' && matrix.build_type == 'Debug'
         uses: actions/upload-artifact@v4
         with:
           name: opencv-include
