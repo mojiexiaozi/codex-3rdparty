@@ -45,12 +45,12 @@ jobs:
           cmake -S . -B build -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF -DBUILD_opencv_world=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPROJECT_VERSION=${{ github.ref_name }}
           cmake --build build --config ${{ matrix.build_type }}
       - name: install opencv
-        if: runner.os != 'Windows' && matrix.build_type == 'Debug'
+        if: runner.os == 'ubuntu-20.04' && matrix.build_type == 'Debug'
         run: |
           cd opencv
           cmake --install build --prefix install
       - name: upload opencv include
-        if: runner.os != 'Windows' && matrix.build_type == 'Debug'
+        if: runner.os == 'ubuntu-20.04' && matrix.build_type == 'Debug'
         uses: actions/upload-artifact@v4
         with:
           name: opencv-include
@@ -65,7 +65,7 @@ jobs:
     needs: create-release
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019]
+        os: [ubuntu-20.04, ubuntu-22.04, windows-2019]
         build_type: [Debug, Release]
     steps:
       - name: Checkout main repository
@@ -91,7 +91,7 @@ jobs:
     needs: [create-release, build-googletest, build-opencv]
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019]
+        os: [ubuntu-20.04, ubuntu-22.04, windows-2019]
         build_type: [Debug, Release]
 
     steps:
