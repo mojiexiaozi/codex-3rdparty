@@ -29,7 +29,7 @@ jobs:
     needs: create-release
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019]
+        os: [ubuntu-20.04,ubuntu-22.04, windows-2019]
         build_type: [Debug, Release]
     steps:
       - name: Checkout main repository
