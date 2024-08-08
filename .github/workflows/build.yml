@@ -45,10 +45,10 @@ jobs:
           cmake -S . -B build -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF -DBUILD_opencv_world=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DPROJECT_VERSION=${{ github.ref_name }}
           cmake --build build --config ${{ matrix.build_type }}
       - name: install opencv
-        if: runner.os == 'ubuntu-20.04' && matrix.build_type == 'Debug'
+        if: matrix.os == 'ubuntu-20.04' && matrix.build_type == 'Debug'
         run: |
           cd opencv
-          cmake --install build --prefix install
+          cmake --install builmatrixd --prefix install
       - name: upload opencv include
         if: matrix.os == 'ubuntu-20.04' && matrix.build_type == 'Debug'
         uses: actions/upload-artifact@v4
